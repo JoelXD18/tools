@@ -87,7 +87,7 @@ sizeLogo();addEventListener("resize",sizeLogo);requestAnimationFrame(drawLogo);
 setInterval(()=>{glitchUntil=performance.now()+200},2600);
 
 /* ---------- Lluvia de codigo ---------- */
-const rc=document.getElementById("rain"),rx=rc.getContext("2d"),chars="01アイウエオカキクケコ<>/\\{}[]#$%";
+const rc=document.getElementById("rain"),rx=rc.getContext("2d"),chars="尺卂爪ㄖ丂01アイウエオカキクケコ<>/\\{}[]#$%";
 let cols=[];
 function sizeRain(){rc.width=innerWidth;rc.height=innerHeight;cols=Array(Math.ceil(innerWidth/16)).fill(0).map(()=>Math.random()*innerHeight/16)}
 sizeRain();addEventListener("resize",sizeRain);
@@ -104,7 +104,7 @@ const frame=(t,inner)=>`<section class="frame"><h2>${t}</h2>${inner}</section>`;
 const back=l=>`<div class="back">${row(0,"Volver",l)}</div>`;
 const ln=i=>`style="animation-delay:${i*130+150}ms"`;
 
-const INFO=["Soy ramos. Sin nombre, sin cara, solo código.","Hacker, entre comillas: me gusta entender cómo funcionan las cosas, romperlas un poco y volver a montarlas."];
+const INFO=["The mf Joel, que mas puedo decir.","¿Por que sigues aqui?"];
 const TG='<a href="#" target="_blank" rel="noopener noreferrer">@tu_usuario</a>';
 
 /* Lector de metadatos (JPEG/EXIF + XMP) */
