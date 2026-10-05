@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ramos</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#000;--fg:#fff;--dim:#777;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:19px/1.4 "VT323",ui-monospace,"Courier New",monospace;letter-spacing:.04em;animation:fl 6s infinite}
+#rain{position:fixed;inset:0;width:100%;height:100%;opacity:.2;z-index:0}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:5;background:repeating-linear-gradient(0deg,rgba(0,0,0,.35) 0 1px,transparent 1px 3px),radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.7))}
+@keyframes fl{0%,94%,100%{opacity:1}95%{opacity:.82}96%{opacity:1}97%{opacity:.9}}
+main{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:22px 16px 56px}
+#logo{display:block;width:100%}
+.pres{display:flex;align-items:center;gap:.7em;margin:4px 0 24px;letter-spacing:.5em;font-size:15px}
+.pres::before{content:"";width:22px;border-top:1px solid var(--fg)}
+.pres::after{content:"";flex:1;border-top:1px solid var(--fg)}
+.boot div{color:var(--dim);min-height:1.6em}.boot div.ok{color:var(--fg)}
+.row{display:flex;gap:.7em;align-items:baseline;width:100%;box-sizing:border-box;background:none;border:0;color:inherit;font:inherit;letter-spacing:inherit;text-align:left;padding:7px 8px;cursor:pointer;text-transform:uppercase}
+.row i{flex:1;min-width:10px;border-bottom:1px dotted var(--fg);transform:translateY(-.3em);opacity:.7}
+.row .k{min-width:3ch}.row .v{color:var(--dim);font-size:16px;letter-spacing:.08em}
+.row:hover,.row:focus-visible{background:var(--fg);color:var(--bg);outline:0;animation:gl .25s steps(2) 1}
+.row:hover .v,.row:focus-visible .v{color:var(--bg)}
+@keyframes gl{25%{transform:translateX(-3px)}50%{transform:translateX(3px) skewX(-6deg)}75%{transform:translateX(-1px)}}
+.hint{color:var(--dim);font-size:15px;margin-top:20px;letter-spacing:.15em}
+.frame{border:1px solid var(--fg);padding:26px 18px 12px;position:relative;margin-top:16px;animation:gl .35s steps(3) 1}
+.frame h2{position:absolute;top:-.85em;left:14px;background:var(--bg);padding:0 10px;margin:0;font-size:14px;font-weight:400;letter-spacing:.3em}
+.ln{opacity:0;animation:in .2s forwards}
+@keyframes in{to{opacity:1}}
+.frame p{margin:0 0 12px}
+.kv{display:flex;gap:.7em;align-items:baseline;padding:3px 0;text-transform:uppercase}
+.kv i{flex:1;min-width:10px;border-bottom:1px dotted var(--fg);transform:translateY(-.3em);opacity:.7}
+.kv span:last-child{color:var(--fg)}
+.back{margin-top:10px}
+a{color:var(--fg)}a:hover{background:var(--fg);color:var(--bg);text-decoration:none}
+textarea{width:100%;box-sizing:border-box;background:#000;color:var(--fg);border:1px solid var(--fg);font:inherit;padding:8px;resize:vertical;outline:0}
+.acts{display:flex;gap:10px;margin:10px 0;flex-wrap:wrap}
+.btn{background:none;border:1px solid var(--fg);color:var(--fg);font:inherit;padding:2px 12px;cursor:pointer;letter-spacing:inherit}
+.btn:hover{background:var(--fg);color:var(--bg)}
+.btn.on{background:var(--fg);color:var(--bg)}
+#out{white-space:pre-wrap;word-break:break-all;margin:0 0 12px;min-height:1.4em}
+.prompt{margin-top:28px;color:var(--fg)}
+.cur{display:inline-block;width:.6em;height:1.1em;background:var(--fg);vertical-align:-.2em;animation:b 1s steps(1) infinite}
+@keyframes b{50%{opacity:0}}
+</style>
+</head>
+<body>
+<canvas id="rain"></canvas>
+<main>
+<canvas id="logo" aria-label="ramos"></canvas>
+<div class="pres">PRESENTS</div>
+<div id="view"></div>
+<div class="prompt">ramos@terminal:~$ <span id="typed"></span><span class="cur"></span></div>
+</main>
+<script>
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ---------- LOGO en pixeles + sombra punteada + glitch ---------- */
+const G={
+R:["11111.","11..11","11..11","11111.","11.11.","11..11","11..11"],
+A:[".1111.","11..11","11..11","111111","11..11","11..11","11..11"],
+M:["11...11","111.111","1111111","11.1.11","11...11","11...11","11...11"],
+O:[".1111.","11..11","11..11","11..11","11..11","11..11",".1111."],
+S:[".11111","11....","11....",".1111.","....11","....11","11111."]};
+const bits=[0,1,2,3,4,5,6].map(r=>{let row=[];[..."RAMOS"].forEach((c,i)=>{if(i)row.push(0);G[c][r].split("").forEach(x=>row.push(x==="1"?1:0))});return row});
+const W=bits[0].length,SH=0;
+const lc=document.getElementById("logo"),lx=lc.getContext("2d");
+let glitchUntil=0;
+function sizeLogo(){const dpr=devicePixelRatio||1,cw=Math.min(lc.parentElement.clientWidth,720),p=Math.floor(cw/(W+2));lc._p=p;lc.style.width=p*(W+2)+"px";lc.style.height=p*(7+SH+1)+"px";lc.width=p*(W+2)*dpr;lc.height=p*(7+SH+1)*dpr;lx.setTransform(dpr,0,0,dpr,0,0)}
+function drawLogo(t){
+  const p=lc._p,g=t<glitchUntil;lx.clearRect(0,0,lc.width,lc.height);lx.fillStyle="#fff";lx.strokeStyle="#fff";lx.lineWidth=Math.max(1,p/7);const sx=((t%4200)/4200)*(W+8)-4;
+  for(let y=0;y<7+SH;y++){
+    const off=g&&Math.random()<.3?Math.round((Math.random()-.5)*5)*p:0;
+    if(g&&Math.random()<.08)continue;
+    for(let x=0;x<W;x++){
+      if(!bits[y][x])continue;
+      const X=(x+1)*p+off,Y=y*p+p/2;
+      if(Math.abs(x-sx)<1.6)lx.strokeRect(X+.5,Y+.5,p-1,p-1);else lx.fillRect(X,Y,p,p)
+    }
+  }
+  if(sx>-1&&sx<W+1)lx.fillRect((sx+1)*p+p/2-1,0,2,p*9);
+  requestAnimationFrame(drawLogo)
+}
+sizeLogo();addEventListener("resize",sizeLogo);requestAnimationFrame(drawLogo);
+setInterval(()=>{glitchUntil=performance.now()+200},2600);
+
+/* ---------- Lluvia de codigo ---------- */
+const rc=document.getElementById("rain"),rx=rc.getContext("2d"),chars="01アイウエオカキクケコ<>/\\{}[]#$%";
+let cols=[];
+function sizeRain(){rc.width=innerWidth;rc.height=innerHeight;cols=Array(Math.ceil(innerWidth/16)).fill(0).map(()=>Math.random()*innerHeight/16)}
+sizeRain();addEventListener("resize",sizeRain);
+setInterval(()=>{
+  rx.fillStyle="rgba(0,0,0,.12)";rx.fillRect(0,0,rc.width,rc.height);rx.fillStyle="#fff";rx.font="14px monospace";
+  cols.forEach((y,i)=>{rx.fillText(chars[Math.floor(Math.random()*chars.length)],i*16,y*16);cols[i]=y*16>rc.height&&Math.random()>.97?0:y+1})
+},60);
+
+/* ---------- Contenido (edita aqui) ---------- */
+const view=document.getElementById("view"),typed=document.getElementById("typed");
+let busy=true,screen="menu";
+const row=(k,l,v)=>`<button class="row" data-k="${k}"><span class="k">[${k}]</span><b style="font-weight:400">${l}</b><i></i><span>■</span><span class="v">${v}</span></button>`;
+const frame=(t,inner)=>`<section class="frame"><h2>${t}</h2>${inner}</section>`;
+const back=l=>`<div class="back">${row(0,"Volver",l)}</div>`;
+const ln=i=>`style="animation-delay:${i*130+150}ms"`;
+
+const INFO=["Soy ramos. Sin nombre, sin cara, solo código.","Hacker, entre comillas: me gusta entender cómo funcionan las cosas, romperlas un poco y volver a montarlas."];
+const TG='<a href="#" target="_blank" rel="noopener noreferrer">@tu_usuario</a>';
+
+/* Lector de metadatos (JPEG/EXIF + XMP) */
+function tiff(d,b,L){
+  const le=d.getUint16(b)===0x4949,u16=o=>d.getUint16(o,le),u32=o=>d.getUint32(o,le),S=[0,1,1,2,4,8,1,1,2,4,8,4,8];
+  const ifd=off=>{const r={},n=u16(b+off);
+    for(let i=0;i<n;i++){try{
+      const e=b+off+2+i*12,tag=u16(e),t=u16(e+2),c=u32(e+4),z=(S[t]||1)*c,vo=z>4?b+u32(e+8):e+8;let v;
+      if(t===2){v="";for(let k=0;k<c-1;k++)v+=String.fromCharCode(d.getUint8(vo+k))}
+      else{v=[];for(let k=0;k<Math.min(c,8);k++)v.push(t===3?u16(vo+k*2):t===4?u32(vo+k*4):t===5?u32(vo+k*8)/u32(vo+k*8+4):d.getUint8(vo+k));if(v.length===1)v=v[0]}
+      r[tag]=v}catch(x){}}
+    return r};
+  const a=ifd(u32(b+4)),ex=a[0x8769]?ifd(a[0x8769]):{},g=a[0x8825]?ifd(a[0x8825]):{};
+  const P=(k,v,w)=>{if(v!==undefined&&v!==""&&v!==false)L.push((w?"[!] ":"")+k+": "+v)};
+  P("camara",[a[0x10F],a[0x110]].filter(Boolean).join(" ").trim());
+  P("software",a[0x131],1);P("fecha",a[0x132]);P("fecha original",ex[0x9003],1);
+  P("autor",a[0x13B],1);P("copyright",a[0x8298],1);P("descripcion",a[0x10E],1);
+  P("propietario",ex[0xA430],1);P("n. serie",ex[0xA431],1);P("objetivo",ex[0xA434]);
+  P("iso",ex[0x8827]);P("apertura",ex[0x829D]&&"f/"+ex[0x829D].toFixed(1));
+  P("exposicion",ex[0x829A]&&(ex[0x829A]<1?"1/"+Math.round(1/ex[0x829A]):ex[0x829A])+" s");
+  P("focal",ex[0x920A]&&ex[0x920A].toFixed(0)+" mm");
+  const dm=v=>Array.isArray(v)&&v.length>2?v[0]+v[1]/60+v[2]/3600:null,la=dm(g[2]),lo=dm(g[4]);
+  if(la!=null&&lo!=null)P("ubicacion gps",((g[1]==="S"?-1:1)*la).toFixed(5)+", "+((g[3]==="W"?-1:1)*lo).toFixed(5),1);
+}
+function readMeta(buf){
+  const L=[];let jpeg=false,xmp=false;
+  try{const d=new DataView(buf);
+    if(d.getUint16(0)===0xFFD8){jpeg=true;let o=2;
+      while(o+4<d.byteLength&&d.getUint8(o)===0xFF){
+        const m=d.getUint8(o+1),n=d.getUint16(o+2);
+        if(m===0xE1){const h=d.getUint32(o+4);if(h===0x45786966)tiff(d,o+10,L);else if(h===0x68747470)xmp=true}
+        if(m===0xDA)break;o+=2+n}}
+  }catch(e){}
+  if(xmp)L.push("[!] xmp: presente (datos de edicion / software)");
+  return{L,jpeg}
+}
+
+/* Utilidades para documentos */
+function pdfStr(v){const by=[];
+  if(v[0]==="<"){const h=v.replace(/[<>\s]/g,"");for(let i=0;i<h.length;i+=2)by.push(parseInt(h.substr(i,2),16))}
+  else v.slice(1,-1).replace(/\\([()\\])|\\n|\\r|([\s\S])/g,(m,a,c)=>{by.push((a||c||" ").charCodeAt(0));return""});
+  if(by[0]===254&&by[1]===255){let r="";for(let i=2;i+1<by.length;i+=2)r+=String.fromCharCode(by[i]*256+by[i+1]);return r}
+  return by.map(c=>String.fromCharCode(c)).join("")}
+async function inflate(raw){const ds=new DecompressionStream("deflate-raw"),w=ds.writable.getWriter();w.write(raw);w.close();return new TextDecoder().decode(await new Response(ds.readable).arrayBuffer())}
+async function unzip(buf,want){
+  const d=new DataView(buf),u=new Uint8Array(buf),out={};let e=-1;
+  for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65600);i--)if(d.getUint32(i,true)===0x06054b50){e=i;break}
+  if(e<0)return out;
+  const n=d.getUint16(e+10,true);let o=d.getUint32(e+16,true);
+  for(let i=0;i<n;i++){
+    const m=d.getUint16(o+10,true),cs=d.getUint32(o+20,true),nl=d.getUint16(o+28,true),el=d.getUint16(o+30,true),cl=d.getUint16(o+32,true),lo=d.getUint32(o+42,true);
+    const name=new TextDecoder().decode(u.subarray(o+46,o+46+nl));
+    if(want.includes(name)){const st=lo+30+d.getUint16(lo+26,true)+d.getUint16(lo+28,true),raw=u.subarray(st,st+cs);out[name]=m===0?new TextDecoder().decode(raw):await inflate(raw)}
+    o+=46+nl+el+cl}
+  return out}
+
+/* Imagenes: mostrar resultado, guardar y compartir (iPhone: guardar en Fotos) */
+async function outImage(box,blob,filename,url){
+  box.innerHTML="";
+  const i=document.createElement("img");i.alt="";i.style.cssText="max-width:100%;display:block;margin:10px 0";i.src=url;box.appendChild(i);
+  const row=document.createElement("div");row.className="acts";box.appendChild(row);
+  const mk=(t,fn)=>{const x=document.createElement("button");x.className="btn";x.textContent="[ "+t+" ]";x.onclick=fn;row.appendChild(x)};
+  let dl=null;try{dl=window.claude&&window.claude.use?await window.claude.use("downloads"):null}catch(e){}
+  if(dl)mk("guardar",()=>dl.save({filename,data:blob}).catch(()=>{}));
+  const file=new File([blob],filename,{type:blob.type});
+  if(navigator.canShare&&navigator.canShare({files:[file]}))mk("compartir / a fotos",()=>navigator.share({files:[file]}).catch(()=>{}));
+  const q=document.createElement("p");q.style.color="#777";q.textContent="iPhone: mantén pulsada la imagen y elige Añadir a Fotos, o usa compartir > Guardar imagen";box.appendChild(q)}
+
+/* Video y audio: MP4/MOV/M4A (atomos) y MP3 (ID3) */
+const fc=(d,o)=>String.fromCharCode(d.getUint8(o),d.getUint8(o+1),d.getUint8(o+2),d.getUint8(o+3));
+const mdate=v=>v?new Date((v-2082844800)*1000).toISOString().replace("T"," ").slice(0,19)+" UTC":"";
+function walk(d,s,e,L,K){
+  while(s+8<=e){
+    let sz=d.getUint32(s);const t=fc(d,s+4);
+    if(sz===0||s+sz>e)sz=e-s;if(sz<8)break;
+    const a=s+8,z=s+sz;
+    if(t==="mvhd"){const v=d.getUint8(a),c=d.getUint32(a+(v?8:4)),ts=d.getUint32(a+(v?20:12)),du=d.getUint32(a+(v?28:16));
+      if(c)L.push("creado: "+mdate(c));if(ts)L.push("duracion: "+(du/ts).toFixed(1)+" s")}
+    else if(t==="tkhd"){const w=d.getUint32(z-8)/65536,h=d.getUint32(z-4)/65536;if(w>0)L.push("resolucion: "+w+"x"+h)}
+    else if(t==="stsd")L.push("codec: "+fc(d,a+12));
+    else if(t==="\u00a9xyz"){const m=new TextDecoder().decode(new Uint8Array(d.buffer,a+4,z-a-4)).match(/([+-]\d+\.?\d*)([+-]\d+\.?\d*)/);if(m)L.push("[!] ubicacion gps: "+Number(m[1])+", "+Number(m[2]))}
+    else if(t==="keys"){K.length=0;const n=d.getUint32(a+4);let p=a+8;for(let i=0;i<n&&p+8<=z;i++){const k=d.getUint32(p);K.push(new TextDecoder().decode(new Uint8Array(d.buffer,p+8,k-8)));p+=k}}
+    else if(t==="ilst"){const M={make:"fabricante",model:"modelo",software:"software","location.ISO6709":"ubicacion gps",creationdate:"fecha local"};let p=a;
+      while(p+8<=z){const k=d.getUint32(p),ix=d.getUint32(p+4);if(k<24)break;
+        const v=new TextDecoder().decode(new Uint8Array(d.buffer,p+24,k-24)),n=(K[ix-1]||"").replace("com.apple.quicktime.","");
+        if(M[n])L.push((n==="creationdate"?"":"[!] ")+M[n]+": "+v);p+=k}}
+    else if(t==="meta")walk(d,a+4,z,L,K);
+    else if(/^(moov|trak|mdia|minf|stbl|udta)$/.test(t))walk(d,a,z,L,K);
+    s=z}}
+async function readMp4(file){const L=[];let off=0;
+  while(off+8<=file.size){const h=new DataView(await file.slice(off,off+16).arrayBuffer());let sz=h.getUint32(0),hl=8;const t=fc(h,4);
+    if(sz===1){sz=h.getUint32(8)*4294967296+h.getUint32(12);hl=16}else if(sz===0)sz=file.size-off;
+    if(sz<hl)break;
+    if(t==="ftyp")L.push("formato: "+fc(new DataView(await file.slice(off+8,off+12).arrayBuffer()),0).trim());
+    if(t==="moov"){if(sz>4e7)break;const buf=await file.slice(off+hl,off+sz).arrayBuffer();walk(new DataView(buf),0,buf.byteLength,L,[]);break}
+    off+=sz}
+  return L}
+async function readId3(file){const L=[],h=new Uint8Array(await file.slice(0,10).arrayBuffer());
+  const sz=((h[6]&127)<<21)|((h[7]&127)<<14)|((h[8]&127)<<7)|(h[9]&127),v=h[3],u=new Uint8Array(await file.slice(10,10+Math.min(sz,2e6)).arrayBuffer());
+  const txt=a=>{const en=a[0];let r=a.subarray(1),lab="latin1";if(en===1){lab=r[0]===254&&r[1]===255?"utf-16be":"utf-16le";r=r.subarray(2)}else if(en===2)lab="utf-16be";else if(en===3)lab="utf-8";return new TextDecoder(lab).decode(r).replace(/\0+/g," ").trim()};
+  const N={TIT2:["titulo"],TPE1:["artista",1],TALB:["album"],TYER:["año"],TDRC:["año"],TENC:["codificado por",1],TSSE:["software",1],TCOP:["copyright",1],TOWN:["propietario",1],TPE2:["artista del album",1],COMM:["comentario",1]};
+  let p=0;
+  while(p+10<=u.length){const id=String.fromCharCode(u[p],u[p+1],u[p+2],u[p+3]);if(!/^[A-Z0-9]{4}$/.test(id))break;
+    const fs=v===4?((u[p+4]&127)<<21)|((u[p+5]&127)<<14)|((u[p+6]&127)<<7)|(u[p+7]&127):u[p+4]*16777216+(u[p+5]<<16)+(u[p+6]<<8)+u[p+7];
+    if(fs<=0)break;const dat=u.subarray(p+10,p+10+fs);
+    if(N[id]){const t=id==="COMM"?txt(new Uint8Array([dat[0],...dat.subarray(4)])):txt(dat);if(t)L.push((N[id][1]?"[!] ":"")+N[id][0]+": "+t)}
+    p+=10+fs}
+  return L}
+async function readMedia(file){const h=new Uint8Array(await file.slice(0,12).arrayBuffer()),s4=String.fromCharCode(...h.subarray(4,8));
+  if(String.fromCharCode(h[0],h[1],h[2])==="ID3")return{kind:"MP3 (ID3)",L:await readId3(file)};
+  if(/^(ftyp|moov|mdat|wide|free|skip)$/.test(s4))return{kind:"MP4 / MOV / M4A",L:await readMp4(file)};
+  return null}
+
+/* Librerias externas: solo se cargan al abrir la herramienta que las necesita */
+const lib=(u,g)=>new Promise((ok,ko)=>{if(window[g])return ok();const e=document.createElement("script");e.src=u;e.onload=ok;e.onerror=ko;document.head.appendChild(e)});
+async function outFile(box,blob,filename){
+  box.innerHTML="";const row=document.createElement("div");row.className="acts";box.appendChild(row);
+  const mk=(t,fn)=>{const x=document.createElement("button");x.className="btn";x.textContent="[ "+t+" ]";x.onclick=fn;row.appendChild(x)};
+  let dl=null;try{dl=window.claude&&window.claude.use?await window.claude.use("downloads"):null}catch(e){}
+  if(dl)mk("guardar",()=>dl.save({filename,data:blob}).catch(()=>{}));
+  const file=new File([blob],filename,{type:blob.type});
+  if(navigator.canShare&&navigator.canShare({files:[file]}))mk("compartir / guardar en archivos",()=>navigator.share({files:[file]}).catch(()=>{}));
+  const q=document.createElement("p");q.style.color="#777";q.textContent=filename+" listo";box.appendChild(q)}
+
+/* QR: analisis del contenido */
+function qrInfo(d){const L=[],W=t=>L.push("[!] "+t);let clean="",u=null;
+  try{u=new URL(d)}catch(e){}
+  if(u&&/^https?:$/.test(u.protocol)){
+    L.push("tipo: enlace web","dominio: "+u.hostname);
+    if(u.protocol==="http:")W("no usa HTTPS (conexion sin cifrar)");
+    if(/(^|\.)xn--/.test(u.hostname)||/[^\x00-\x7f]/.test(d))W("el dominio usa caracteres especiales: puede ser una copia falsa de otra web");
+    if(/^\d+\.\d+\.\d+\.\d+$/.test(u.hostname))W("va a una IP en vez de a un dominio");
+    if(/^(bit\.ly|t\.co|tinyurl\.com|goo\.gl|ow\.ly|is\.gd|cutt\.ly|rb\.gy|shorturl\.at|t\.ly)$/.test(u.hostname))W("enlace acortado: no se ve el destino real");
+    if(u.username||u.password)W("lleva usuario@ delante del dominio (truco habitual de engaño)");
+    if(u.hostname.split(".").length>4)W("muchos subdominios: puede imitar otra web");
+    const tr=[];u.searchParams.forEach((v,k)=>{if(/^(utm_|fbclid|gclid|igshid|mc_eid|mc_cid|msclkid|ttclid|yclid|_hsenc|_hsmi)/i.test(k))tr.push(k)});
+    if(tr.length){W("rastreadores en el enlace: "+tr.join(", "));const c=new URL(d);tr.forEach(k=>c.searchParams.delete(k));clean=c.href;L.push("enlace limpio: "+clean)}else clean=u.href;
+  }else if(/^WIFI:/i.test(d)){
+    const g=k=>{const m=d.match(new RegExp("(?:^|;|:)"+k+":((?:\\\\.|[^;])*)"));return m?m[1].replace(/\\(.)/g,"$1"):""};
+    L.push("tipo: acceso wifi","red: "+g("S"),"seguridad: "+(g("T")||"abierta"));if(g("P"))W("contiene la contraseña del wifi: "+g("P"))}
+  else if(/^(mailto|tel|sms|smsto|geo):/i.test(d))L.push("tipo: "+d.split(":")[0].toLowerCase(),"valor: "+d.slice(d.indexOf(":")+1));
+  else if(/^BEGIN:VCARD/i.test(d))L.push("tipo: tarjeta de contacto (vCard)");
+  else if(/^otpauth:/i.test(d)){L.push("tipo: codigo de autenticacion en dos pasos");W("contiene el secreto de tu 2FA: no lo compartas")}
+  else if(/^(bitcoin|ethereum|litecoin|upi|paypal|bizum):/i.test(d)){L.push("tipo: pago");W("es un enlace de pago: comprueba bien destinatario e importe")}
+  else L.push("tipo: texto o formato desconocido");
+  return{L,clean}}
+
+/* Escaner: filtros y PDF */
+function scanFilter(D,W,H,mode){
+  if(mode==="co"){for(let i=0;i<D.length;i+=4)for(let c=0;c<3;c++)D[i+c]=Math.max(0,Math.min(255,(D[i+c]-128)*1.3+140));return}
+  const g=new Uint8ClampedArray(W*H);for(let i=0,j=0;i<D.length;i+=4,j++)g[j]=.299*D[i]+.587*D[i+1]+.114*D[i+2];
+  if(mode==="gr"){for(let j=0;j<g.length;j++){const v=Math.max(0,Math.min(255,(g[j]-110)*1.6+128));D[j*4]=D[j*4+1]=D[j*4+2]=v}return}
+  const I=new Uint32Array((W+1)*(H+1)),r=Math.max(8,Math.round(W/20));
+  for(let y=0;y<H;y++){let row=0;for(let x=0;x<W;x++){row+=g[y*W+x];I[(y+1)*(W+1)+x+1]=I[y*(W+1)+x+1]+row}}
+  for(let y=0;y<H;y++){const y0=Math.max(0,y-r),y1=Math.min(H,y+r+1);
+    for(let x=0;x<W;x++){const x0=Math.max(0,x-r),x1=Math.min(W,x+r+1),n=(x1-x0)*(y1-y0),m=(I[y1*(W+1)+x1]-I[y0*(W+1)+x1]-I[y1*(W+1)+x0]+I[y0*(W+1)+x0])/n,q=g[y*W+x]/(m+1);
+      const v=q>.92?255:q<.72?0:(q-.72)/.2*255,o=(y*W+x)*4;D[o]=D[o+1]=D[o+2]=v}}}
+function makePdf(pages){
+  const enc=new TextEncoder(),parts=[],off=[];let len=0;
+  const add=x=>{const u=typeof x==="string"?enc.encode(x):x;parts.push(u);len+=u.length};
+  const obj=(n,body)=>{off[n]=len;add(n+" 0 obj\n"+body+"\nendobj\n")};
+  add("%PDF-1.4\n");
+  obj(1,"<</Type/Catalog/Pages 2 0 R>>");
+  obj(2,"<</Type/Pages/Count "+pages.length+"/Kids["+pages.map((p,i)=>(3+3*i)+" 0 R").join(" ")+"]>>");
+  pages.forEach((p,i)=>{
+    const id=3+3*i,PW=p.w>p.h?842:595,PH=p.w>p.h?595:842,m=18,sc=Math.min((PW-2*m)/p.w,(PH-2*m)/p.h),iw=(p.w*sc).toFixed(2),ih=(p.h*sc).toFixed(2),x=((PW-iw)/2).toFixed(2),y=((PH-ih)/2).toFixed(2);
+    const c="q "+iw+" 0 0 "+ih+" "+x+" "+y+" cm /Im0 Do Q";
+    obj(id,"<</Type/Page/Parent 2 0 R/MediaBox[0 0 "+PW+" "+PH+"]/Resources<</XObject<</Im0 "+(id+2)+" 0 R>>>>/Contents "+(id+1)+" 0 R>>");
+    obj(id+1,"<</Length "+c.length+">>\nstream\n"+c+"\nendstream");
+    off[id+2]=len;add((id+2)+" 0 obj\n<</Type/XObject/Subtype/Image/Width "+p.w+"/Height "+p.h+"/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length "+p.b.length+">>\nstream\n");add(p.b);add("\nendstream\nendobj\n")});
+  const n=3+3*pages.length,xr=len;add("xref\n0 "+n+"\n0000000000 65535 f \n");
+  for(let i=1;i<n;i++)add(String(off[i]).padStart(10,"0")+" 00000 n \n");
+  add("trailer\n<</Size "+n+"/Root 1 0 R>>\nstartxref\n"+xr+"\n%%EOF");
+  return new Blob(parts,{type:"application/pdf"})}
+
+/* Para añadir una herramienta: copia un bloque, cambia n, t y lo que hace run(box) */
+const TOOLS=[
+{n:"exif",t:"limpiar metadatos de fotos",run(b){
+  b.innerHTML='<label class="btn" style="display:inline-block">[ elegir imagen ]<input id="f" type="file" accept="image/*" hidden></label><div id="inf" style="margin:12px 0;white-space:pre-wrap"></div><div id="res"></div>';
+  const f=b.querySelector("#f"),inf=b.querySelector("#inf"),res=b.querySelector("#res");
+  f.addEventListener("change",async()=>{
+    const file=f.files[0];if(!file)return;res.innerHTML="";inf.textContent="procesando...";
+    try{
+      const m=readMeta(await file.slice(0,262144).arrayBuffer());
+      const bmp=await createImageBitmap(file),c=document.createElement("canvas");
+      c.width=bmp.width;c.height=bmp.height;c.getContext("2d").drawImage(bmp,0,0);
+      const type=/png|webp/.test(file.type)?file.type:"image/jpeg";
+      const ext=type==="image/png"?"png":type==="image/webp"?"webp":"jpg";
+      const blob=await new Promise(r=>c.toBlob(r,type,.92));
+      inf.textContent="archivo: "+file.name+"\n\nMETADATOS ORIGINALES"+(m.jpeg?"":" (lectura detallada solo en JPEG)")+"\n"+(m.L.length?m.L.join("\n"):"ninguno detectado")+(m.L.some(x=>x.startsWith("[!]"))?"\n\n[!] = dato que podria identificarte":"")+"\n\nRESULTADO: sin metadatos";
+      outImage(res,blob,"limpia_"+file.name.replace(/\.[^.]+$/,"")+"."+ext,c.toDataURL(type,.92));
+    }catch(x){inf.textContent="error: no se pudo leer esa imagen"}
+  })
+}},
+{n:"pixelar",t:"tapar caras, textos, matriculas",run(b){
+  b.innerHTML='<label class="btn" style="display:inline-block">[ elegir imagen ]<input id="f" type="file" accept="image/*" hidden></label><p id="h" style="color:#777;margin:10px 0 0">arrastra sobre la imagen para marcar una zona</p><canvas id="cv" style="display:none;max-width:100%;touch-action:none;border:1px solid #fff;margin:10px 0"></canvas><div class="acts" id="ac" style="display:none"><button class="btn on" data-m="p">[ pixelar ]</button><button class="btn" data-m="n">[ tapar negro ]</button><button class="btn" data-a="u">[ deshacer ]</button><button class="btn" data-a="s">[ guardar ]</button></div><div id="res"></div>';
+  const f=b.querySelector("#f"),cv=b.querySelector("#cv"),cx=cv.getContext("2d"),ac=b.querySelector("#ac"),res=b.querySelector("#res");
+  const src=document.createElement("canvas"),sx=src.getContext("2d");
+  let mode="p",hist=[],st=null,name="imagen";
+  const draw=sel=>{cx.clearRect(0,0,cv.width,cv.height);cx.drawImage(src,0,0);
+    if(sel){const w=Math.max(2,cv.width/300);cx.setLineDash([8,6]);cx.lineWidth=w*2;cx.strokeStyle="#000";cx.strokeRect(...sel);cx.lineWidth=w;cx.strokeStyle="#fff";cx.strokeRect(...sel);cx.setLineDash([])}};
+  const pix=(x,y,w,h)=>{const bs=Math.max(8,Math.round(Math.min(w,h)/5)),tw=Math.max(1,Math.ceil(w/bs)),th=Math.max(1,Math.ceil(h/bs)),t=document.createElement("canvas");
+    t.width=tw;t.height=th;t.getContext("2d").drawImage(src,x,y,w,h,0,0,tw,th);sx.imageSmoothingEnabled=false;sx.drawImage(t,0,0,tw,th,x,y,w,h);sx.imageSmoothingEnabled=true};
+  f.addEventListener("change",async()=>{
+    const file=f.files[0];if(!file)return;res.innerHTML="";hist=[];name=file.name.replace(/\.[^.]+$/,"");
+    try{const bmp=await createImageBitmap(file),k=Math.min(1,2400/Math.max(bmp.width,bmp.height));
+      src.width=cv.width=Math.round(bmp.width*k);src.height=cv.height=Math.round(bmp.height*k);sx.drawImage(bmp,0,0,src.width,src.height);
+      cv.style.display="block";ac.style.display="flex";draw()}catch(x){res.textContent="error: no se pudo leer esa imagen"}
+  });
+  const pt=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]};
+  const box=(a,c)=>{const x=Math.max(0,Math.round(Math.min(a[0],c[0]))),y=Math.max(0,Math.round(Math.min(a[1],c[1])));
+    return[x,y,Math.min(cv.width-x,Math.round(Math.abs(c[0]-a[0]))),Math.min(cv.height-y,Math.round(Math.abs(c[1]-a[1])))]};
+  cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);st=pt(e)};
+  cv.onpointermove=e=>{if(st)draw(box(st,pt(e)))};
+  cv.onpointerup=e=>{if(!st)return;const[x,y,w,h]=box(st,pt(e));st=null;
+    if(w>3&&h>3){hist.push(sx.getImageData(0,0,cv.width,cv.height));if(hist.length>10)hist.shift();
+      if(mode==="p")pix(x,y,w,h);else{sx.fillStyle="#000";sx.fillRect(x,y,w,h)}}
+    draw()};
+  ac.addEventListener("click",async e=>{const m=e.target.dataset.m,a=e.target.dataset.a;
+    if(m){mode=m;ac.querySelectorAll("[data-m]").forEach(x=>x.classList.toggle("on",x.dataset.m===m))}
+    else if(a==="u"&&hist.length){sx.putImageData(hist.pop(),0,0);draw()}
+    else if(a==="s"){const blob=await new Promise(r=>src.toBlob(r,"image/png"));outImage(res,blob,"pixelada_"+name+".png",src.toDataURL("image/png"))}
+  })
+}},
+{n:"docs",t:"metadatos de PDF y Word",run(b){
+  b.innerHTML='<label class="btn" style="display:inline-block">[ elegir documento ]<input id="f" type="file" accept=".pdf,.docx,.xlsx,.pptx" hidden></label><div id="inf" style="margin:12px 0;white-space:pre-wrap"></div>';
+  const f=b.querySelector("#f"),inf=b.querySelector("#inf");
+  f.addEventListener("change",async()=>{const file=f.files[0];if(!file)return;inf.textContent="leyendo...";
+    try{const buf=await file.arrayBuffer(),u=new Uint8Array(buf),L=[],P=(k,v,w)=>{if(v)L.push((w?"[!] ":"")+k+": "+v)};let kind;
+      if(String.fromCharCode(u[0],u[1],u[2],u[3])==="%PDF"){kind="PDF";
+        const t=new TextDecoder("latin1").decode(u),M={};
+        for(const m of t.matchAll(/\/(Author|Creator|Producer|Title|Subject|Keywords|CreationDate|ModDate)\s*(\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>)/g))if(!M[m[1]])M[m[1]]=pdfStr(m[2]);
+        const x=r=>{const m=t.match(r);return m?m[1].trim():""},dt=v=>v.replace(/^D:(\d{4})(\d\d)(\d\d)(\d\d)?(\d\d)?.*/,(q,y,mo,d,h,mi)=>y+"-"+mo+"-"+d+(h?" "+h+":"+(mi||"00"):""));
+        P("autor",M.Author||x(/<dc:creator>[\s\S]*?<rdf:li[^>]*>([^<]*)</),1);
+        P("creado con",M.Creator||x(/<xmp:CreatorTool>([^<]*)</),1);P("productor",M.Producer||x(/<pdf:Producer>([^<]*)</));
+        P("titulo",M.Title);P("asunto",M.Subject);P("palabras clave",M.Keywords);P("creado",dt(M.CreationDate||""));P("modificado",dt(M.ModDate||""));
+        if(/\/ObjStm/.test(t))L.push("(este PDF usa objetos comprimidos: puede haber datos que no se leen aqui)")
+      }else if(u[0]===80&&u[1]===75){kind="Office (docx/xlsx/pptx)";
+        const z=await unzip(buf,["docProps/core.xml","docProps/app.xml"]),c=z["docProps/core.xml"]||"",a=z["docProps/app.xml"]||"";
+        if(!c&&!a){inf.textContent="no se encontraron metadatos de Office en ese archivo";return}
+        const tg=(x,t)=>{const m=x.match(new RegExp("<"+t+"[^>]*>([^<]*)<"));return m?m[1].replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").trim():""};
+        P("autor",tg(c,"dc:creator"),1);P("ultima modificacion por",tg(c,"cp:lastModifiedBy"),1);P("empresa",tg(a,"Company"),1);P("responsable",tg(a,"Manager"),1);
+        P("programa",(tg(a,"Application")+" "+tg(a,"AppVersion")).trim());P("creado",tg(c,"dcterms:created"));P("modificado",tg(c,"dcterms:modified"));
+        P("titulo",tg(c,"dc:title"));P("asunto",tg(c,"dc:subject"));P("palabras clave",tg(c,"cp:keywords"));P("plantilla",tg(a,"Template"));P("tiempo de edicion",tg(a,"TotalTime")&&tg(a,"TotalTime")+" min")
+      }else{inf.textContent="formato no soportado (PDF, DOCX, XLSX, PPTX)";return}
+      inf.textContent="archivo: "+file.name+"\ntipo: "+kind+"\n\nMETADATOS\n"+(L.length?L.join("\n"):"ninguno detectado")+(L.some(x=>x.startsWith("[!]"))?"\n\n[!] = dato que podria identificarte":"")
+    }catch(e){inf.textContent="error: no se pudo leer ese archivo"}
+  })
+}},
+{n:"voz",t:"distorsionar la voz de un audio",run(b){
+  b.innerHTML='<label class="btn" style="display:inline-block">[ elegir audio ]<input id="f" type="file" accept="audio/*" hidden></label><p id="inf" style="margin:10px 0;color:#777">cambia el tono (y tambien la velocidad) o lo vuelve robotico</p><div class="acts" id="fx" style="display:none"><button class="btn on" data-f="grave">[ grave ]</button><button class="btn" data-f="agudo">[ agudo ]</button><button class="btn" data-f="robot">[ robot ]</button><button class="btn" data-f="eco">[ eco ]</button></div><div class="acts" id="ac" style="display:none"><button class="btn" data-a="p">[ escuchar ]</button><button class="btn" data-a="x">[ detener ]</button><button class="btn" data-a="s">[ guardar ]</button></div>';
+  const f=b.querySelector("#f"),inf=b.querySelector("#inf"),fxb=b.querySelector("#fx"),acb=b.querySelector("#ac");
+  const FX={grave:{r:.75},agudo:{r:1.3},robot:{r:1,ring:70},eco:{r:1,echo:1}};
+  let buf=null,fx="grave",ac=null,src=null,name="audio";
+  const stop=()=>{try{src&&src.stop()}catch(x){}try{ac&&ac.close()}catch(x){}src=ac=null};window.__stop=stop;
+  async function render(){const e=FX[fx],oc=new OfflineAudioContext(buf.numberOfChannels,Math.ceil(buf.length/e.r)+(e.echo?buf.sampleRate:0),buf.sampleRate),s=oc.createBufferSource();
+    s.buffer=buf;s.playbackRate.value=e.r;
+    if(e.ring){const g=oc.createGain(),o=oc.createOscillator();g.gain.value=0;o.frequency.value=e.ring;o.connect(g.gain);o.start();s.connect(g);g.connect(oc.destination)}
+    else if(e.echo){const d=oc.createDelay(1),fb=oc.createGain();d.delayTime.value=.18;fb.gain.value=.4;s.connect(oc.destination);s.connect(d);d.connect(fb);fb.connect(d);d.connect(oc.destination)}
+    else s.connect(oc.destination);
+    s.start();return oc.startRendering()}
+  async function play(rec){stop();inf.textContent="procesando...";
+    const r=await render();ac=new (window.AudioContext||window.webkitAudioContext)();src=ac.createBufferSource();src.buffer=r;src.connect(ac.destination);
+    if(!rec){src.onended=()=>{inf.textContent="listo"};inf.textContent="reproduciendo...";src.start();return}
+    let dl=null;try{dl=window.claude&&window.claude.use?await window.claude.use("downloads"):null}catch(x){}
+    if(!dl){inf.textContent="guardar no esta disponible aqui";stop();return}
+    const dest=ac.createMediaStreamDestination(),mt="audio/webm",ok=window.MediaRecorder&&MediaRecorder.isTypeSupported(mt),ch=[];
+    src.connect(dest);const mr=ok?new MediaRecorder(dest.stream,{mimeType:mt}):new MediaRecorder(dest.stream);
+    mr.ondataavailable=e=>ch.push(e.data);
+    mr.onstop=()=>{stop();inf.textContent="listo";dl.save({filename:"voz_"+name+(ok?".webm":".mp4"),data:new Blob(ch,{type:mr.mimeType})}).catch(()=>{})};
+    src.onended=()=>mr.stop();inf.textContent="guardando (dura lo mismo que el audio)...";mr.start();src.start()}
+  f.addEventListener("change",async()=>{const file=f.files[0];if(!file)return;stop();name=file.name.replace(/\.[^.]+$/,"");inf.textContent="leyendo...";
+    try{const c=new (window.AudioContext||window.webkitAudioContext)();buf=await c.decodeAudioData(await file.arrayBuffer());c.close();
+      fxb.style.display=acb.style.display="flex";inf.textContent="elige un efecto y pulsa escuchar"}catch(x){inf.textContent="error: no se pudo leer ese audio"}});
+  fxb.addEventListener("click",e=>{const k=e.target.dataset.f;if(!k)return;fx=k;fxb.querySelectorAll("[data-f]").forEach(x=>x.classList.toggle("on",x.dataset.f===k))});
+  acb.addEventListener("click",e=>{const a=e.target.dataset.a;if(a==="p")play(false);else if(a==="x"){stop();inf.textContent="detenido"}else if(a==="s")play(true)})
+}},
+{n:"media",t:"metadatos de video y audio",run(b){
+  b.innerHTML='<label class="btn" style="display:inline-block">[ elegir video o audio ]<input id="f" type="file" accept="video/*,audio/*" hidden></label><div id="inf" style="margin:12px 0;white-space:pre-wrap"></div><p style="color:#777;margin:0">iPhone: al elegir de la galeria toca Opciones y activa Ubicacion / Todos los datos. Si no, iOS quita datos antes de que la web los vea.</p>';
+  const f=b.querySelector("#f"),inf=b.querySelector("#inf");
+  f.addEventListener("change",async()=>{const file=f.files[0];if(!file)return;inf.textContent="leyendo...";
+    try{const r=await readMedia(file);if(!r){inf.textContent="formato no soportado (MP4, MOV, M4A, MP3)";return}
+      inf.textContent="archivo: "+file.name+"\ntipo: "+r.kind+"\ntamaño: "+(file.size/1048576).toFixed(1)+" MB\n\nMETADATOS\n"+(r.L.length?r.L.join("\n"):"ninguno detectado")+(r.L.some(x=>x.startsWith("[!]"))?"\n\n[!] = dato que podria identificarte":"")
+    }catch(e){inf.textContent="error: no se pudo leer ese archivo"}})
+}},
+{n:"qr",t:"ver que hay dentro de un QR",run(b){
+  b.innerHTML='<label class="btn" style="display:inline-block">[ elegir foto o captura ]<input id="f" type="file" accept="image/*" hidden></label><div id="inf" style="margin:12px 0;white-space:pre-wrap;word-break:break-all"></div><div id="ac" class="acts"></div><p style="color:#777;margin:0">mira el contenido del QR y avisa de enlaces raros antes de que lo abras. Carga una libreria de lectura (cdnjs) solo al usar esta herramienta.</p>';
+  const f=b.querySelector("#f"),inf=b.querySelector("#inf"),ac=b.querySelector("#ac");
+  f.addEventListener("change",async()=>{const file=f.files[0];if(!file)return;inf.textContent="leyendo...";ac.innerHTML="";
+    try{await lib("https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js","jsQR")}catch(e){inf.textContent="no se pudo cargar el lector de QR";return}
+    try{const bmp=await createImageBitmap(file);let r=null;
+      for(const k of[1,.5,.25]){const sc=Math.min(1,1600/Math.max(bmp.width,bmp.height))*k,w=Math.max(60,Math.round(bmp.width*sc)),h=Math.max(60,Math.round(bmp.height*sc)),c=document.createElement("canvas");
+        c.width=w;c.height=h;const x=c.getContext("2d");x.drawImage(bmp,0,0,w,h);r=jsQR(x.getImageData(0,0,w,h).data,w,h,{inversionAttempts:"attemptBoth"});if(r)break}
+      if(!r){inf.textContent="no he encontrado ningun QR en esa imagen";return}
+      const i=qrInfo(r.data),bad=i.L.some(x=>x.startsWith("[!]"));
+      inf.textContent="contenido:\n"+r.data+"\n\n"+i.L.join("\n")+"\n\nveredicto: "+(bad?"ojo, revisa los avisos antes de abrirlo":"sin señales raras (aun asi, abre solo lo que esperabas)");
+      const cp=document.createElement("button");cp.className="btn";cp.textContent="[ copiar "+(i.clean&&i.clean!==r.data?"enlace limpio":"contenido")+" ]";
+      cp.onclick=async()=>{try{await navigator.clipboard.writeText(i.clean||r.data);cp.textContent="[ copiado ]"}catch(e){cp.textContent="[ no se pudo copiar ]"}};ac.appendChild(cp)
+    }catch(e){inf.textContent="error: no se pudo leer esa imagen"}})
+}},
+{n:"firmar",t:"firmar un PDF con tu firma",run(b){
+  b.innerHTML='<p>1. tu firma</p><canvas id="pad" width="600" height="220" style="width:100%;max-width:420px;border:1px solid #fff;touch-action:none"></canvas><div class="acts"><button class="btn" data-a="c">[ borrar ]</button><button class="btn" data-a="u">[ usar esta firma ]</button></div><p id="sg" style="color:#777;margin:0 0 12px"></p><p>2. el PDF</p><label class="btn" style="display:inline-block">[ elegir PDF ]<input id="f" type="file" accept="application/pdf,.pdf" hidden></label><div id="st" style="display:none"><p>3. colocala (pagina <span id="pn"></span>)</p><div class="acts"><button class="btn" data-a="p">[ &lt; ]</button><button class="btn" data-a="n">[ &gt; ]</button><button class="btn" data-pos=".2">[ abajo izq ]</button><button class="btn" data-pos=".5">[ abajo centro ]</button><button class="btn" data-pos=".8">[ abajo der ]</button></div><canvas id="mock" style="display:block;max-width:100%;border:1px solid #fff;touch-action:none;margin:8px 0"></canvas><label>tamaño <input id="sz" type="range" min="8" max="60" value="28"></label><div class="acts"><button class="btn" data-a="s">[ firmar y guardar ]</button></div><div id="res"></div></div><p style="color:#777;margin:0">no se ve el contenido del PDF: usa las posiciones rapidas y ajusta arrastrando. Carga una libreria de PDF (cdnjs) al elegir el archivo.</p>';
+  const q=s=>b.querySelector(s),pad=q("#pad"),pc=pad.getContext("2d"),sg=q("#sg"),f=q("#f"),stp=q("#st"),pn=q("#pn"),mk=q("#mock"),mx=mk.getContext("2d"),sz=q("#sz"),res=q("#res");
+  let strokes=[],sigImg=null,sigPng=null,bytes=null,pgs=[],cur=0,pos=[.75,.9],name="documento",on=false;
+  const ink=(c,col,w,o)=>{c.strokeStyle=col;c.lineWidth=w;c.lineCap=c.lineJoin="round";strokes.forEach(st=>{c.beginPath();st.forEach((p,i)=>{i?c.lineTo(p[0]-o[0],p[1]-o[1]):c.moveTo(p[0]-o[0],p[1]-o[1])});if(st.length===1)c.lineTo(st[0][0]-o[0]+.1,st[0][1]-o[1]);c.stroke()})};
+  const redraw=()=>{pc.clearRect(0,0,pad.width,pad.height);ink(pc,"#fff",5,[0,0])};
+  const pt=(e,c)=>{const r=c.getBoundingClientRect();return[(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height]};
+  pad.onpointerdown=e=>{pad.setPointerCapture(e.pointerId);on=true;strokes.push([pt(e,pad)]);redraw()};
+  pad.onpointermove=e=>{if(on){strokes[strokes.length-1].push(pt(e,pad));redraw()}};
+  pad.onpointerup=()=>{on=false};
+  function draw(){if(!pgs.length)return;const[pw,ph]=pgs[cur],cw=Math.min(380,b.clientWidth||340);mk.width=cw;mk.height=Math.round(cw*ph/pw);
+    mx.fillStyle="#fff";mx.fillRect(0,0,mk.width,mk.height);mx.fillStyle="#bbb";mx.font="13px monospace";mx.fillText("pagina "+(cur+1)+"/"+pgs.length+" (contenido no visible)",8,18);pn.textContent=(cur+1)+" / "+pgs.length;
+    if(sigImg&&sigImg.complete){const w=mk.width*sz.value/100,h=w*sigImg.height/sigImg.width,x=pos[0]*mk.width-w/2,y=pos[1]*mk.height-h/2;mx.drawImage(sigImg,x,y,w,h);mx.setLineDash([5,4]);mx.strokeStyle="#888";mx.strokeRect(x,y,w,h);mx.setLineDash([])}}
+  const setSig=u=>{sigPng=u;sigImg=new Image();sigImg.onload=()=>{sg.textContent="firma lista";draw()};sigImg.src=u};
+  try{const u=localStorage.getItem("ramos_sig");if(u)setSig(u)}catch(e){}
+  function useSig(){if(!strokes.length)return;const all=strokes.flat(),xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),m=8,x0=Math.min(...xs)-m,y0=Math.min(...ys)-m,c=document.createElement("canvas");
+    c.width=Math.ceil(Math.max(...xs)-x0+m);c.height=Math.ceil(Math.max(...ys)-y0+m);ink(c.getContext("2d"),"#111",5,[x0,y0]);const u=c.toDataURL("image/png");setSig(u);try{localStorage.setItem("ramos_sig",u)}catch(e){}}
+  let mdrag=false;const place=e=>{const p=pt(e,mk);pos=[Math.max(0,Math.min(1,p[0]/mk.width)),Math.max(0,Math.min(1,p[1]/mk.height))];draw()};
+  mk.onpointerdown=e=>{mk.setPointerCapture(e.pointerId);mdrag=true;place(e)};mk.onpointermove=e=>{if(mdrag)place(e)};mk.onpointerup=()=>{mdrag=false};
+  sz.oninput=draw;
+  f.addEventListener("change",async()=>{const file=f.files[0];if(!file)return;name=file.name.replace(/\.[^.]+$/,"");sg.textContent=sigPng?"firma lista":"dibuja tu firma y pulsa usar esta firma";
+    try{await lib("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js","PDFLib")}catch(e){sg.textContent="no se pudo cargar la libreria de PDF";return}
+    try{bytes=await file.arrayBuffer();pgs=(await PDFLib.PDFDocument.load(bytes)).getPages().map(p=>{const s=p.getSize();return[s.width,s.height]});cur=0;stp.style.display="block";draw()}
+    catch(e){sg.textContent="no se pudo abrir ese PDF (¿tiene contraseña?)"}});
+  async function sign(){if(!sigPng){sg.textContent="primero dibuja tu firma y pulsa usar esta firma";return}
+    const d=await PDFLib.PDFDocument.load(bytes),png=await d.embedPng(sigPng),pg=d.getPages()[cur],{width:pw,height:ph}=pg.getSize(),mb=pg.getMediaBox(),w=pw*sz.value/100,h=w*png.height/png.width;
+    pg.drawImage(png,{x:mb.x+pos[0]*pw-w/2,y:mb.y+ph-pos[1]*ph-h/2,width:w,height:h});
+    if(pg.getRotation().angle)sg.textContent="esta pagina esta girada: la firma puede salir en otra posicion";
+    outFile(res,new Blob([await d.save()],{type:"application/pdf"}),"firmado_"+name+".pdf")}
+  b.addEventListener("click",e=>{const a=e.target.dataset.a,ps=e.target.dataset.pos;
+    if(ps){pos=[+ps,.9];draw()}else if(a==="c"){strokes=[];redraw()}else if(a==="u")useSig();
+    else if(a==="p"&&cur>0){cur--;draw()}else if(a==="n"&&cur<pgs.length-1){cur++;draw()}else if(a==="s")sign()})
+}},
+{n:"escaner",t:"fotos de papel a PDF",run(b){
+  b.innerHTML='<label class="btn" style="display:inline-block">[ elegir fotos ]<input id="f" type="file" accept="image/*" multiple hidden></label><p id="inf" style="color:#777;margin:10px 0">hazle una foto al papel (o elige varias de la galeria), arrastra las esquinas hasta los bordes y añade la pagina</p><canvas id="cv" style="display:none;max-width:100%;touch-action:none;border:1px solid #fff"></canvas><div class="acts" id="fl" style="display:none"><button class="btn on" data-f="bn">[ blanco y negro ]</button><button class="btn" data-f="gr">[ gris ]</button><button class="btn" data-f="co">[ color ]</button></div><div class="acts" id="ac" style="display:none"><button class="btn" data-a="add">[ añadir pagina ]</button><button class="btn" data-a="pdf">[ crear PDF ]</button><button class="btn" data-a="rst">[ empezar de nuevo ]</button></div><div id="res"></div>';
+  const q=s=>b.querySelector(s),f=q("#f"),inf=q("#inf"),cv=q("#cv"),cx=cv.getContext("2d"),fl=q("#fl"),ac=q("#ac"),res=q("#res");
+  let queue=[],cur=null,Q=[],pages=[],filt="bn",drag=-1,ps=1;
+  const R=()=>Math.max(11,cv.width/40);
+  const draw=()=>{cx.drawImage(cur,0,0,cv.width,cv.height);cx.lineJoin="round";cx.beginPath();Q.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.closePath();
+    cx.lineWidth=R()/3;cx.strokeStyle="#000";cx.stroke();cx.lineWidth=R()/6;cx.strokeStyle="#fff";cx.stroke();
+    Q.forEach(p=>{cx.beginPath();cx.arc(p[0],p[1],R(),0,7);cx.fillStyle="#fff";cx.fill();cx.lineWidth=2;cx.strokeStyle="#000";cx.stroke()})};
+  async function next(){cur=null;const file=queue.shift();
+    if(!file){cv.style.display=fl.style.display="none";ac.style.display=pages.length?"flex":"none";inf.textContent=pages.length?"paginas listas: "+pages.length+". elige mas fotos o crea el PDF":"elige fotos";return}
+    cur=await createImageBitmap(file);ps=Math.min(1,900/Math.max(cur.width,cur.height));cv.width=Math.round(cur.width*ps);cv.height=Math.round(cur.height*ps);
+    const w=cv.width,h=cv.height;Q=[[.07,.07],[.93,.07],[.93,.93],[.07,.93]].map(p=>[p[0]*w,p[1]*h]);
+    cv.style.display="block";fl.style.display=ac.style.display="flex";
+    inf.textContent="pagina "+(pages.length+1)+(queue.length?" (quedan "+queue.length+" fotos)":"")+": arrastra las esquinas hasta los bordes del papel";draw()}
+  function warp(){
+    const k=Math.min(1,2000/Math.max(cur.width,cur.height)),sw=Math.round(cur.width*k),sh=Math.round(cur.height*k),sc=document.createElement("canvas");sc.width=sw;sc.height=sh;
+    const sx=sc.getContext("2d");sx.drawImage(cur,0,0,sw,sh);const S=sx.getImageData(0,0,sw,sh).data,P=Q.map(p=>[p[0]/ps*k,p[1]/ps*k]),d=(a,c)=>Math.hypot(a[0]-c[0],a[1]-c[1]);
+    let W=Math.round((d(P[0],P[1])+d(P[3],P[2]))/2),H=Math.round((d(P[0],P[3])+d(P[1],P[2]))/2);const m=Math.min(1,1800/Math.max(W,H));W=Math.max(50,Math.round(W*m));H=Math.max(50,Math.round(H*m));
+    const oc=document.createElement("canvas");oc.width=W;oc.height=H;const ox=oc.getContext("2d"),O=ox.createImageData(W,H),D=O.data;
+    for(let y=0;y<H;y++){const v=y/(H-1),ax=P[0][0]+(P[3][0]-P[0][0])*v,ay=P[0][1]+(P[3][1]-P[0][1])*v,bx=P[1][0]+(P[2][0]-P[1][0])*v,by=P[1][1]+(P[2][1]-P[1][1])*v;
+      for(let x=0;x<W;x++){const u=x/(W-1),X=Math.min(sw-1,Math.max(0,Math.round(ax+(bx-ax)*u))),Y=Math.min(sh-1,Math.max(0,Math.round(ay+(by-ay)*u))),j=(Y*sw+X)*4,o=(y*W+x)*4;D[o]=S[j];D[o+1]=S[j+1];D[o+2]=S[j+2];D[o+3]=255}}
+    scanFilter(D,W,H,filt);ox.putImageData(O,0,0);return oc}
+  async function add(){if(!cur)return;inf.textContent="procesando...";await new Promise(r=>setTimeout(r,30));const oc=warp(),blob=await new Promise(r=>oc.toBlob(r,"image/jpeg",.85));
+    pages.push({b:new Uint8Array(await blob.arrayBuffer()),w:oc.width,h:oc.height});await next()}
+  const pt=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]};
+  cv.onpointerdown=e=>{const p=pt(e);let bi=-1,bd=R()*3;Q.forEach((c,i)=>{const d=Math.hypot(c[0]-p[0],c[1]-p[1]);if(d<bd){bd=d;bi=i}});if(bi>=0){drag=bi;cv.setPointerCapture(e.pointerId)}};
+  cv.onpointermove=e=>{if(drag<0)return;const p=pt(e);Q[drag]=[Math.max(0,Math.min(cv.width,p[0])),Math.max(0,Math.min(cv.height,p[1]))];draw()};
+  cv.onpointerup=()=>{drag=-1};
+  f.addEventListener("change",()=>{queue=queue.concat([...f.files]);f.value="";res.innerHTML="";if(!cur)next()});
+  fl.addEventListener("click",e=>{const k=e.target.dataset.f;if(!k)return;filt=k;fl.querySelectorAll("[data-f]").forEach(x=>x.classList.toggle("on",x.dataset.f===k))});
+  ac.addEventListener("click",async e=>{const a=e.target.dataset.a;
+    if(a==="add")await add();
+    else if(a==="pdf"){if(cur)await add();if(pages.length)outFile(res,makePdf(pages),"escaneo.pdf")}
+    else if(a==="rst"){queue=[];cur=null;pages=[];res.innerHTML="";cv.style.display=fl.style.display=ac.style.display="none";inf.textContent="elige fotos"}})
+}},
+{n:"bk drink",t:"QR de Burger King (pide codigo)",run(b){
+  const ID="104910993",TK="9b64665a0893e6497cc160a3f2f4c928",p2=n=>String(n).padStart(2,"0");
+  const stamp=d=>d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+p2(d.getHours())+p2(d.getMinutes())+p2(d.getSeconds());
+  b.innerHTML='<div id="s1"><p style="margin:0 0 10px">introduce el numero de establecimiento</p><input id="c" type="text" inputmode="numeric" maxlength="12" placeholder="Ej. 99999" autocomplete="off" style="width:100%;box-sizing:border-box;background:#000;color:#fff;border:1px solid #fff;font:inherit;letter-spacing:.2em;padding:8px;outline:0"><div class="acts"><button class="btn" data-a="go">[ generar QR ]</button></div><p id="er" style="color:#777;margin:0"></p></div><div id="s2" style="display:none"><div id="qr" style="background:#fff;display:inline-block;padding:12px;margin:6px 0"></div><div id="tx" style="white-space:pre-wrap;word-break:break-all;color:#777;margin:6px 0"></div><div class="acts"><button class="btn" data-a="re">[ regenerar ]</button><button class="btn" data-a="ch">[ cambiar codigo ]</button></div></div>';
+  const q=s=>b.querySelector(s),c=q("#c"),er=q("#er"),s1=q("#s1"),s2=q("#s2"),qr=q("#qr"),tx=q("#tx");
+  let code="";
+  async function gen(){
+    code=c.value.trim();if(!code){er.textContent="hace falta el codigo para generar el QR";c.focus();return}
+    er.textContent="generando...";
+    try{await lib("https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js","QRCode")}catch(e){er.textContent="no se pudo cargar la libreria de QR";return}
+    const data=code+","+ID+","+stamp(new Date())+","+TK;
+    qr.innerHTML="";new QRCode(qr,{text:data,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});
+    tx.textContent=data;er.textContent="";s1.style.display="none";s2.style.display="block"}
+  b.addEventListener("click",e=>{const a=e.target.dataset.a;
+    if(a==="go")gen();
+    else if(a==="re")gen();
+    else if(a==="ch"){s2.style.display="none";s1.style.display="block";c.value="";c.focus()}});
+  c.addEventListener("keydown",e=>{if(e.key==="Enter")gen()})
+}}
+];
+
+function menu(){screen="menu";window.__stop&&window.__stop();typed.textContent="";
+  view.innerHTML=row(1,"Info","quien soy")+row(2,"Tools","herramientas")+row(3,"Contact","telegram")+'<div class="hint">PULSA 1-3 PARA ENTRAR · 0 / ESC PARA VOLVER</div>'}
+function info(){screen="info";typed.textContent="cd /info";
+  view.innerHTML=frame("[1] INFO",INFO.map((x,i)=>`<p class="ln" ${ln(i)}>${x}</p>`).join(""))+back("menu")}
+function contact(){screen="contact";typed.textContent="cd /contact";
+  view.innerHTML=frame("[3] CONTACT",`<div class="kv ln" ${ln(0)}><span>telegram</span><i></i><span>■</span><span>${TG}</span></div>`)+back("menu")}
+function tools(){screen="tools";window.__stop&&window.__stop();typed.textContent="cd /tools";
+  view.innerHTML=frame("[2] TOOLS",TOOLS.map((t,i)=>row(i+1,t.n,t.t)).join(""))+back("menu")}
+function tool(i){const t=TOOLS[i-1];if(!t)return;screen="tool";typed.textContent="./"+t.n;
+  view.innerHTML=frame(`[${i}] ${t.n.toUpperCase()}`,'<div id="box"></div>')+back("tools");t.run(document.getElementById("box"))}
+const go=k=>{if(busy)return;k=String(k);
+  if(k==="0"){screen==="tool"?tools():menu();return}
+  if(screen==="menu"){({1:info,2:tools,3:contact})[k]?.()}
+  else if(screen==="tools")tool(+k)};
+view.addEventListener("click",e=>{const b=e.target.closest("[data-k]");if(b)go(b.dataset.k)});
+addEventListener("keydown",e=>{
+  if(/^(TEXTAREA|INPUT)$/.test(e.target.tagName)){if(e.key==="Escape")e.target.blur();return}
+  if(/^[0-9]$/.test(e.key))go(e.key);else if(e.key==="Escape")go("0")});
+
+/* ---------- Arranque ---------- */
+(async()=>{
+  const lines=[["> ramos.sys v1.0",0],["> cargando modulos ........ [ OK ]",0],["> acceso concedido",1]];
+  view.innerHTML='<div class="boot"></div>';const b=view.firstChild;
+  for(const [t,ok] of lines){const d=document.createElement("div");if(ok)d.className="ok";b.appendChild(d);for(const c of t){d.textContent+=c;await sleep(16)}await sleep(160)}
+  await sleep(250);busy=false;menu();
+})();
+</script>
+</body>
+</html>
